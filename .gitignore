@@ -1,0 +1,88 @@
+# =============================================================================
+# EsperanzaAI Image Editor — Comprehensive .gitignore for GitHub
+# =============================================================================
+
+# 1. Standalone AppImages & Packaging Artifacts (Strictly >100MB; rejected by GitHub)
+*.AppImage
+*.appimage
+AppDir/
+AppDir_*/
+squashfs-root/
+*.squashfs
+build_cache/
+
+# 2. Standalone Portable Python Cache & Virtual Environments
+.standalone_python_cache/
+*.tar.gz
+*.whl
+venv/
+.venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# 3. Heavy AI Model Checkpoints, VAEs, LoRAs (Gigabyte-sized binary weights)
+models
+models/
+models/checkpoints/
+models/vae/
+models/loras/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.onnx
+
+# 4. Rust / Cargo / Tauri Intermediate Compilation Files (>1 GB)
+tauri_app/src-tauri/target/
+**/target/
+**/*.rs.bk
+
+# 5. Python Bytecode, Caches & Distribution
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.pytest_cache/
+.coverage
+htmlcov/
+
+# 6. User Generated Outputs & Frame Exports (Keep directory structure intact)
+novel_images/*.png
+novel_images/*.json
+!novel_images/.gitkeep
+
+# 7. Logs & Temporary Debugging Transcripts
+*.log
+/tmp/esperanza_ai_image_editor.log
+*_transcript*.txt
+*.transcript.jsonl
+*.jsonl
+
+# 8. Local State & Editor Caches
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

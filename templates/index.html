@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Image Editor v4 - Dual-Layer Darkroom</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+
+  <!-- TOP HEADER -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="logo-group">
+        <span class="logo-icon">✨</span>
+        <div class="logo-text">
+          <h1>AI Image Editor <span class="badge-v">v5</span></h1>
+          <p class="subtitle">Dual Prompts &bull; Direct Layer Img2Img &bull; Inpainting &bull; X/Y Sliders</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="header-center">
+      <div class="status-pill" id="system-status">
+        <span class="status-dot"></span>
+        <span id="status-label">Online</span>
+        <span class="divider">|</span>
+        <span id="model-display">Scanning models...</span>
+      </div>
+
+      <!-- DIRECT HEADER UPLOAD SHORTCUTS -->
+      <div class="header-upload-pills">
+        <button type="button" class="pill-upload pill-new" id="btn-header-new-canvas" title="Clear canvas and start a fresh image project">
+          <span>✨ New Canvas</span>
+        </button>
+        <button type="button" class="pill-upload" id="btn-header-upload-l1" title="Upload an image into Layer 1 (Base) - Converted to RGBA">
+          <span>📁 +Upload Layer 1 (Base)</span>
+        </button>
+        <button type="button" class="pill-upload" id="btn-header-upload-l2" title="Upload an image into Layer 2 (Top) - Converted to RGBA">
+          <span>📁 +Upload Layer 2 (Top)</span>
+        </button>
+      </div>
+
+      <!-- GLOBAL STOP BUTTON (Pulses red when generating) -->
+      <button class="btn btn-abort" id="btn-global-abort" style="display: none;" title="Abort ongoing diffusion immediately">
+        <span class="pulse-dot"></span> 🛑 STOP GENERATION
+      </button>
+    </div>
+
+    <div class="header-right">
+      <div class="thread-selector">
+        <label for="threads-select">CPU Threads:</label>
+        <select id="threads-select" class="styled-select" title="CPU threads (os.nice 15 guard active)">
+          <option value="2">2 Threads (Ultra light)</option>
+          <option value="4" selected>4 Threads (Fast &amp; Smooth)</option>
+          <option value="6">6 Threads (Maximum)</option>
+        </select>
+      </div>
+
+      <div class="reel-badge" title="Frames saved in ./novel_images for Tauri-VideoMaker">
+        <span class="reel-icon">🎬</span>
+        <span id="reel-counter">0 frames in ./novel_images</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN APP CONTAINER -->
+  <main class="app-layout">
+    
+    <!-- LEFT SIDEBAR: DUAL PROMPTS & GENERATION (WIDTH 430px) -->
+    <aside class="panel left-panel">
+      <div class="panel-header">
+        <h2>Generation &amp; Harmonizer Studio</h2>
+        <span class="panel-tag">LCM 4-8 Steps</span>
+      </div>
+
+      <!-- GLOBAL SETTINGS -->
+      <div class="control-group">
+        <label for="checkpoint-select">SD Model Checkpoint (./models):</label>
+        <select id="checkpoint-select" class="styled-select"></select>
+      </div>
+
+      <div class="grid-2col">
+        <div class="control-group">
+          <label for="txt-resolution">Target Resolution:</label>
+          <select id="txt-resolution" class="styled-select">
+            <option value="512x768" selected>512 × 768 (Portrait - Default)</option>
+            <option value="768x512">768 × 512 (Landscape)</option>
+            <option value="512x512">512 × 512 (Square)</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="txt-steps">LCM Steps: <span id="txt-steps-val">5</span></label>
+          <input type="range" id="txt-steps" min="4" max="14" value="5">
+        </div>
+      </div>
+
+      <div class="grid-2col">
+        <div class="control-group">
+          <label for="txt-cfg">CFG Guidance: <span id="txt-cfg-val">1.5</span></label>
+          <input type="range" id="txt-cfg" min="1.0" max="4.0" step="0.1" value="1.5">
+        </div>
+        <div class="control-group">
+          <label>Auto-Save JSON:</label>
+          <span class="status-indicator">✓ project_state.json</span>
+        </div>
+      </div>
+
+      <!-- DEDICATED IMAGE UPLOAD HUB (IMPOSSIBLE TO MISS) -->
+      <div class="upload-hub-card">
+        <div class="upload-hub-title">
+          <span>📥 Upload Existing Images</span>
+          <span class="upload-hub-tag">Auto-converted to RGBA</span>
+        </div>
+        <div class="upload-hub-actions">
+          <button type="button" class="btn btn-upload-hub btn-upload-hub-l1" id="btn-hub-upload-l1">
+            <span>📁 Upload to Layer 1 (Base)</span>
+          </button>
+          <button type="button" class="btn btn-upload-hub btn-upload-hub-l2" id="btn-hub-upload-l2">
+            <span>📁 Upload to Layer 2 (Top)</span>
+          </button>
+        </div>
+        <input type="file" id="hub-file-l1" accept="image/*" style="display: none;">
+        <input type="file" id="hub-file-l2" accept="image/*" style="display: none;">
+      </div>
+
+      <!-- DEDICATED CAPTION & TEXT OVERLAY STUDIO (v7) -->
+      <div class="caption-studio-card">
+        <div class="caption-studio-header" id="caption-studio-toggle">
+          <div class="caption-studio-title">
+            <span>📝 Caption & Text Overlay</span>
+            <span class="caption-badge">Transparent PNG</span>
+          </div>
+          <button type="button" class="btn-micro" id="btn-toggle-caption-studio">Collapse ▴</button>
+        </div>
+        
+        <div class="caption-studio-body" id="caption-studio-body">
+          <div class="control-group">
+            <label for="caption-text-main">
+              <span>Caption / Dialogue Text:</span>
+              <span class="label-hint">Supports Enter ↵ for multiple lines</span>
+            </label>
+            <textarea id="caption-text-main" rows="2" placeholder="e.g. Learn Python&#10;Press Enter for true multi-line subtitles..."></textarea>
+          </div>
+
+          <div class="grid-2col" style="margin-top: 6px;">
+            <div class="control-group">
+              <label for="caption-text-top"><span>Top Header (Optional):</span></label>
+              <input type="text" id="caption-text-top" placeholder="e.g. LIKE  •  SUBSCRIBE">
+            </div>
+            <div class="control-group">
+              <label for="caption-preset"><span>Position Preset:</span></label>
+              <select id="caption-preset" class="styled-select">
+                <option value="lower_third" selected>Lower Third (Subtitle)</option>
+                <option value="center">Center Screen</option>
+                <option value="top">Top Header</option>
+                <option value="top_and_bottom">Top & Bottom Banner</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="caption-style-row" style="margin-top: 8px;">
+            <div class="control-group">
+              <label for="caption-font-family"><span>Font:</span></label>
+              <select id="caption-font-family" class="styled-select">
+                <option value="Impact, Charcoal, sans-serif" selected>Impact (Display Bold)</option>
+                <option value="'Cinzel', Georgia, serif">Cinematic Serif</option>
+                <option value="'Inter', -apple-system, sans-serif">Clean Modern Sans</option>
+                <option value="'Courier New', monospace">Vintage Typewriter</option>
+                <option value="cursive, 'Brush Script MT', sans-serif">Script / Handwriting</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="caption-font-size"><span>Size: <span id="val-caption-font-size">36</span>px</span></label>
+              <input type="range" id="caption-font-size" min="18" max="72" value="36">
+            </div>
+          </div>
+
+          <div class="caption-colors-row" style="margin-top: 8px;">
+            <div class="color-picker-item">
+              <label for="caption-fill-color">Fill Color:</label>
+              <div class="color-input-wrapper">
+                <input type="color" id="caption-fill-color" value="#ffe600">
+                <span class="color-hex-label" id="lbl-fill-color">#FFE600</span>
+              </div>
+            </div>
+            <div class="color-picker-item">
+              <label for="caption-stroke-color">Outline Color:</label>
+              <div class="color-input-wrapper">
+                <input type="color" id="caption-stroke-color" value="#000000">
+                <span class="color-hex-label" id="lbl-stroke-color">#000000</span>
+              </div>
+            </div>
+            <div class="control-group" style="flex: 1;">
+              <label for="caption-stroke-width"><span>Outline: <span id="val-caption-stroke-width">4</span>px</span></label>
+              <input type="range" id="caption-stroke-width" min="0" max="10" value="4">
+            </div>
+          </div>
+
+          <div class="caption-checkbox-row" style="margin-top: 8px;">
+            <label class="checkbox-label" for="caption-draw-frame">
+              <input type="checkbox" id="caption-draw-frame">
+              <span>Draw YouTube Card Double Border Frame</span>
+            </label>
+          </div>
+
+          <div class="caption-actions-row" style="margin-top: 10px;">
+            <button type="button" class="btn btn-accent" id="btn-apply-caption-l2" style="flex: 2;">
+              <span>🎯 Apply to Layer 2 (Overlay)</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-download-caption-png" style="flex: 1;" title="Download standalone transparent PNG">
+              <span>📥 Download PNG</span>
+            </button>
+            <button type="button" class="btn btn-secondary" id="btn-clear-caption" title="Clear Text">
+              <span>🧹</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- DUAL PROMPT CARDS (PERSISTENT & INDEPENDENT) -->
+      <div class="dual-prompts-container">
+
+        <!-- PROMPT CARD 1: LAYER 1 (BASE / BACKGROUND) -->
+        <div class="prompt-box prompt-box-l1">
+          <div class="prompt-box-header">
+            <div class="prompt-box-title">
+              <span class="box-badge badge-l1">LAYER 1</span>
+              <span>Base / Background Scene</span>
+            </div>
+            <div class="prompt-box-actions">
+              <button class="btn-micro" id="btn-copy-l1-to-l2" title="Copy text to Layer 2">Copy to L2 ↷</button>
+            </div>
+          </div>
+
+          <textarea id="prompt-l1" rows="3" placeholder="e.g. dense jungle canopy with ancient stone ruins, dappled emerald sunlight, mist, cinematic lighting..."></textarea>
+          
+          <div class="prompt-sub-inputs">
+            <input type="text" id="neg-prompt-l1" placeholder="Negative: blurry, bad anatomy" value="blurry, distorted, low quality, bad anatomy">
+            <input type="number" id="seed-l1" placeholder="Seed (blank=rand)">
+          </div>
+
+          <div class="layer-denoise-row">
+            <label for="denoise-l1">Img2Img Denoise: <span id="val-denoise-l1">0.50</span></label>
+            <input type="range" id="denoise-l1" min="0.10" max="0.95" step="0.05" value="0.50">
+          </div>
+
+          <div class="btn-group-row">
+            <button class="btn btn-primary" id="btn-gen-l1" title="Generate new image from text">
+              <span>✨ Txt2Img</span>
+            </button>
+            <button type="button" class="btn btn-accent" id="btn-img2img-l1" title="Transform Layer 1 using Img2Img">
+              <span>🎨 Img2Img</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-upload-inline" id="btn-card-upload-l1" title="Upload local image into Layer 1 (converts to RGBA)">
+              <span>📁 Upload</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-upload-inline" id="btn-flip-prompt-l1" title="Flip Layer 1 Horizontally (Left-to-Right Mirror)">
+              <span>⇄ Flip H</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- PROMPT CARD 2: LAYER 2 (TOP / FOREGROUND SUBJECT) -->
+        <div class="prompt-box prompt-box-l2">
+          <div class="prompt-box-header">
+            <div class="prompt-box-title">
+              <span class="box-badge badge-l2">LAYER 2</span>
+              <span>Top / Foreground Subject</span>
+            </div>
+            <div class="prompt-box-actions">
+              <button class="btn-micro" id="btn-copy-l2-to-l1" title="Copy text to Layer 1">Copy to L1 ↶</button>
+            </div>
+          </div>
+
+          <textarea id="prompt-l2" rows="3" placeholder="e.g. weathered moss-covered stone statue of an ancient warrior, carved stone, detailed, isolated subject..."></textarea>
+          
+          <div class="prompt-sub-inputs">
+            <input type="text" id="neg-prompt-l2" placeholder="Negative: blurry, bad anatomy" value="blurry, distorted, low quality, bad anatomy">
+            <input type="number" id="seed-l2" placeholder="Seed (blank=rand)">
+          </div>
+
+          <div class="layer-denoise-row">
+            <label for="denoise-l2">Img2Img Denoise: <span id="val-denoise-l2">0.50</span></label>
+            <input type="range" id="denoise-l2" min="0.10" max="0.95" step="0.05" value="0.50">
+          </div>
+
+          <div class="btn-group-row">
+            <button class="btn btn-secondary" id="btn-gen-l2" title="Generate new image from text">
+              <span>✨ Txt2Img</span>
+            </button>
+            <button type="button" class="btn btn-accent" id="btn-img2img-l2" title="Transform Layer 2 using Img2Img">
+              <span>🎨 Img2Img</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-upload-inline" id="btn-card-upload-l2" title="Upload local image into Layer 2 (converts to RGBA)">
+              <span>📁 Upload</span>
+            </button>
+            <button type="button" class="btn btn-secondary btn-upload-inline" id="btn-flip-prompt-l2" title="Flip Layer 2 Horizontally (Left-to-Right Mirror)">
+              <span>⇄ Flip H</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- HARMONIZATION & INPAINTING CARD -->
+        <div class="prompt-box prompt-box-harm">
+          <div class="prompt-box-header">
+            <div class="prompt-box-title">
+              <span class="box-badge badge-harm">HARMONIZE &amp; INPAINT</span>
+              <span>Blend Seams &amp; Lighting</span>
+            </div>
+          </div>
+
+          <textarea id="prompt-harm" rows="2">coherent unified scene, seamless lighting and shadows, photorealistic, sharp focus, natural atmosphere, 8k</textarea>
+          
+          <div class="label-with-presets">
+            <label for="harm-denoise">Denoise Strength: <span id="harm-denoise-val">0.35</span></label>
+            <div class="quick-presets">
+              <button class="btn-micro" data-denoise="0.25">Light 0.25</button>
+              <button class="btn-micro" data-denoise="0.35">Blend 0.35</button>
+              <button class="btn-micro" data-denoise="0.65">Restyle 0.65</button>
+            </div>
+          </div>
+          <input type="range" id="harm-denoise" min="0.10" max="0.90" step="0.05" value="0.35">
+
+          <div class="btn-group-row">
+            <button class="btn btn-accent" id="btn-run-harmonize" style="flex: 1;">
+              <span>🔮 Harmonize Seams</span>
+            </button>
+            <button class="btn btn-secondary" id="btn-run-inpaint" title="Inpaint strictly onto the erased/masked area">
+              <span>🖌️ Inpaint Mask</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- PROMINENT RUNNING LOG CONSOLE (ALWAYS VISIBLE) -->
+      <div class="terminal-drawer" id="terminal-drawer">
+        <div class="terminal-header">
+          <div class="terminal-title">
+            <span class="terminal-icon">&gt;_</span>
+            <span>Running Log &amp; Terminal Output</span>
+          </div>
+          <div class="terminal-actions">
+            <span class="terminal-status" id="terminal-live-dot">● Ready</span>
+            <button class="btn-micro" id="btn-clear-terminal">Clear</button>
+          </div>
+        </div>
+        <div class="terminal-body" id="terminal-log">
+          <div class="terminal-line info">[System ready] Log initialized.</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER VIEWPORT: DARKROOM CANVAS -->
+    <section class="center-viewport">
+      
+      <!-- FLOATING HUD TOOLBAR -->
+      <div class="canvas-hud">
+        <div class="hud-group">
+          <button class="tool-btn active" id="tool-erase" title="Feathered Eraser (Erases Top Layer)">
+            <span>🧹 Feather Eraser</span>
+          </button>
+          <button class="tool-btn" id="tool-restore" title="Restore Brush (Un-erases Top Layer)">
+            <span>🩹 Restore</span>
+          </button>
+          <button class="tool-btn" id="tool-move" title="Move & Reposition Top Layer">
+            <span>✋ Drag Move</span>
+          </button>
+        </div>
+
+        <div class="hud-divider"></div>
+
+        <div class="hud-slider-group" id="brush-controls">
+          <div class="slider-item">
+            <label>Size: <span id="val-brush-size">45px</span></label>
+            <input type="range" id="slider-brush-size" min="5" max="250" value="45">
+          </div>
+
+          <div class="slider-item">
+            <label>Feather: <span id="val-brush-feather">80%</span></label>
+            <input type="range" id="slider-brush-feather" min="0" max="100" value="80">
+          </div>
+
+          <div class="slider-item">
+            <label>Opacity: <span id="val-brush-opacity">100%</span></label>
+            <input type="range" id="slider-brush-opacity" min="10" max="100" value="100">
+          </div>
+        </div>
+
+        <div class="hud-divider"></div>
+
+        <div class="hud-group">
+          <button class="action-btn" id="btn-undo" title="Undo Eraser Stroke">↶ Undo</button>
+          <button class="action-btn" id="btn-redo" title="Redo Eraser Stroke">↷ Redo</button>
+          <button class="action-btn" id="btn-clear-mask" title="Reset Mask (Restore Whole Top Image)">Reset Mask</button>
+        </div>
+
+        <div class="hud-divider"></div>
+
+        <div class="hud-group">
+          <button class="swap-btn-hud" id="btn-hud-swap" title="Swap Layer Order">
+            <span>⇅ Swap Layers</span>
+          </button>
+        </div>
+
+        <div class="hud-divider"></div>
+
+        <div class="hud-group">
+          <button class="action-btn btn-new-canvas-hud" id="btn-new-canvas" title="Clear canvas layers to start a new image">
+            <span>✨ New Canvas</span>
+          </button>
+        </div>
+
+        <div class="hud-divider"></div>
+
+        <div class="hud-group">
+          <span class="hud-canvas-badge" id="hud-res-badge">📐 Target: 512 × 768</span>
+        </div>
+      </div>
+
+      <!-- MAIN CANVAS WORKSPACE -->
+      <div class="canvas-wrapper" id="canvas-container">
+        <div class="canvas-viewport" id="viewport">
+          <canvas id="main-canvas" width="512" height="768"></canvas>
+          <div id="brush-cursor" class="brush-cursor"></div>
+        </div>
+      </div>
+
+      <!-- BOTTOM ACTION BAR -->
+      <div class="bottom-action-bar">
+        <button class="btn btn-success" id="btn-save-novel">
+          <span>💾 Save to ./novel_images (0000X.png + .json)</span>
+        </button>
+        <button class="btn btn-secondary" id="btn-flatten-to-l1">
+          <span>🔄 Flatten &amp; Send to Layer 1</span>
+        </button>
+        <button class="btn btn-secondary" id="btn-flatten-to-l2">
+          <span>🔄 Flatten &amp; Send to Layer 2</span>
+        </button>
+        <button class="btn btn-danger-subtle" id="btn-new-canvas-bottom" title="Clear canvas and start a new image composition">
+          <span>📄 New Canvas</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- RIGHT SIDEBAR: LAYER STACK & SLIDERS -->
+    <aside class="panel right-panel">
+      <div class="panel-header">
+        <h2>Layers &amp; Precision Sliders</h2>
+        <span class="panel-tag">Dual Composite</span>
+      </div>
+
+      <!-- LAYER 2 (TOP) WITH PRECISION POSITION SLIDERS -->
+      <div class="layer-card active-layer" id="card-layer2">
+        <div class="layer-header">
+          <div class="layer-title">
+            <span class="layer-badge top-badge" id="badge-l2">TOP (Foreground)</span>
+            <span class="layer-name" id="name-l2">Layer 2</span>
+          </div>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <button type="button" class="btn-micro" id="btn-clear-layer-2" title="Clear Layer 2 Image">🗑️ Clear</button>
+            <button class="layer-vis-btn" id="vis-l2" title="Toggle Visibility">👁️</button>
+          </div>
+        </div>
+
+        <div class="layer-body">
+          <div class="layer-thumb-container">
+            <img id="thumb-l2" class="layer-thumb" src="" alt="Empty Layer 2">
+            <div class="thumb-empty" id="empty-l2">Drop or Upload Image</div>
+          </div>
+
+          <div class="layer-controls">
+            <div class="btn-row-micro" style="margin-bottom: 6px;">
+              <label class="btn-file-upload" style="flex: 1; margin-bottom: 0;">
+                📁 Choose File for Layer 2
+                <input type="file" id="upload-l2" accept="image/*" style="display: none;">
+              </label>
+              <button type="button" class="btn-micro" id="btn-flip-card-l2" title="Flip Layer 2 Horizontally (Left-to-Right Mirror)">⇄ Flip H</button>
+            </div>
+
+            <!-- POSITION & SCALE SLIDERS -->
+            <div class="transform-sliders">
+              <!-- HORIZONTAL OFFSET SLIDER -->
+              <div class="control-row">
+                <label>Horizontal (X): <span id="val-pos-x">0px</span></label>
+                <input type="range" id="slider-pos-x" min="-512" max="512" value="0">
+              </div>
+
+              <!-- VERTICAL OFFSET SLIDER -->
+              <div class="control-row">
+                <label>Vertical (Y): <span id="val-pos-y">0px</span></label>
+                <input type="range" id="slider-pos-y" min="-768" max="768" value="0">
+              </div>
+
+              <!-- SCALE SLIDER -->
+              <div class="control-row">
+                <label>Scale: <span id="val-scale-l2">100%</span></label>
+                <input type="range" id="scale-l2" min="10" max="300" value="100">
+              </div>
+
+              <!-- OPACITY SLIDER -->
+              <div class="control-row">
+                <label>Opacity: <span id="val-opacity-l2">100%</span></label>
+                <input type="range" id="opacity-l2" min="0" max="100" value="100">
+              </div>
+
+              <div class="btn-row-micro">
+                <button type="button" class="btn-micro" id="btn-reset-pos-l2">Center (X=0, Y=0)</button>
+                <button type="button" class="btn-micro" id="btn-fit-canvas-l2">Fit Canvas</button>
+                <button type="button" class="btn-micro" id="btn-flip-l2" title="Flip Layer 2 Horizontally (Left-to-Right Mirror)">⇄ Flip Horizontal</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LAYER SWAP BUTTON IN THE MIDDLE -->
+      <div class="layer-swap-container">
+        <button class="btn-swap-layers" id="btn-swap-layers">
+          <span class="swap-icon">⇅</span>
+          <span class="swap-text">Swap Top &amp; Bottom Layers</span>
+        </button>
+      </div>
+
+      <!-- LAYER 1 (BOTTOM) -->
+      <div class="layer-card" id="card-layer1">
+        <div class="layer-header">
+          <div class="layer-title">
+            <span class="layer-badge bottom-badge" id="badge-l1">BOTTOM (Base)</span>
+            <span class="layer-name" id="name-l1">Layer 1</span>
+          </div>
+          <div style="display: flex; gap: 4px; align-items: center;">
+            <button type="button" class="btn-micro" id="btn-clear-layer-1" title="Clear Layer 1 Image">🗑️ Clear</button>
+            <button class="layer-vis-btn" id="vis-l1" title="Toggle Visibility">👁️</button>
+          </div>
+        </div>
+
+        <div class="layer-body">
+          <div class="layer-thumb-container">
+            <img id="thumb-l1" class="layer-thumb" src="" alt="Empty Layer 1">
+            <div class="thumb-empty" id="empty-l1">Drop or Upload Image</div>
+          </div>
+
+          <div class="layer-controls">
+            <div class="btn-row-micro" style="margin-bottom: 6px;">
+              <label class="btn-file-upload" style="flex: 1; margin-bottom: 0;">
+                📁 Choose File for Layer 1
+                <input type="file" id="upload-l1" accept="image/*" style="display: none;">
+              </label>
+              <button type="button" class="btn-micro" id="btn-flip-l1" title="Flip Layer 1 Horizontally (Left-to-Right Mirror)">⇄ Flip Horizontal</button>
+            </div>
+            <div class="info-note">Base layer sets canvas resolution.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- REEL GALLERY CARD FOR TAURI-VIDEOMAKER -->
+      <div class="panel-section reel-gallery-section">
+        <div class="section-header">
+          <h3>🎬 ./novel_images Reel</h3>
+          <button class="btn-micro" id="btn-refresh-reel">Refresh</button>
+        </div>
+        <p class="section-desc">Outputs &amp; JSON metadata for Tauri-VideoMaker:</p>
+        <div class="reel-strip" id="reel-strip">
+          <!-- Thumbnails loaded dynamically -->
+        </div>
+      </div>
+
+    </aside>
+
+  </main>
+
+  <script src="/static/js/editor.js"></script>
+</body>
+</html>

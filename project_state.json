@@ -1,0 +1,23 @@
+{
+  "prompt_l1": "a closeup profile image of a alien monster with a background of a tropical jungle with large tropical flowers",
+  "neg_prompt_l1": "blurry, distorted, low quality, bad anatomy",
+  "seed_l1": "",
+  "prompt_l2": "a closeup profile image of a alien monster with a background of a tropical jungle with large tropical flowers",
+  "neg_prompt_l2": "blurry, distorted, low quality, bad anatomy",
+  "seed_l2": "",
+  "prompt_harm": "coherent unified scene, seamless lighting and shadows, photorealistic, sharp focus, natural atmosphere, 8k",
+  "denoise_harm": "0.3",
+  "denoise_l1": "0.35",
+  "denoise_l2": "0.5",
+  "steps": "5",
+  "cfg": "1.5",
+  "resolution": "512x768",
+  "model": "dreamshaper_8LCM.safetensors",
+  "top_layer_id": 1,
+  "transforms": {
+    "scale": 1,
+    "x": 0,
+    "y": 0,
+    "opacity": 1
+  }
+}
